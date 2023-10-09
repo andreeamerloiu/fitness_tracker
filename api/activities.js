@@ -84,3 +84,4 @@ router.patch('/:activityId', requireUser, requiredNotSent({requiredParams: ['nam
 });
 
 module.exports = router;
+
