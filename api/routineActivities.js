@@ -7,43 +7,52 @@ const { requireUser, requiredNotSent } = require('./utils')
 
 
 // PATCH /api/routine_activities/:routineActivityId
-router.patch('/:routineActivityId', requireUser, requiredNotSent({requiredParams: ['count', 'duration'], atLeastOne: true}), async (req, res, next) => {
-  try {
-    const {count, duration} = req.body;
-    const {routineActivityId} = req.params;
-    const routineActivityToUpdate = await getRoutineActivityById(routineActivityId);
-    if(!routineActivityToUpdate) {
-      next({
-        name: 'NotFound',
-        message: `No routine_activity found by ID ${routineActivityId}`
-      })
-    } else {
-      if(!await canEditRoutineActivity(req.params.routineActivityId, req.user.id)) {
-        res.status(403);
-        next({name: "Unauthorized", message: "You cannot edit this routine_activity!"});
-      } else {
-        const updatedRoutineActivity = await updateRoutineActivity({id: req.params.routineActivityId, count, duration})
-        res.send(updatedRoutineActivity);
-      }
+router.patch("/:routineActivityId", async (req, res, next) => {
+    const { routineActivityId } = req.params;
+    const { count, duration } = req.body;
+
+    try {
+        const routineActivity = await getRoutineActivityById(routineActivityId);
+        const routine = await getRoutineById(routineActivity.routineId);
+        const userCanEdit = await canEditRoutineActivity(routineActivityId, req.user.id);
+
+        if (!userCanEdit) {
+            res.send({
+                error: "Error",
+                name: "UnauthorizedUser",
+                message: `User ${req.user.username} is not allowed to update ${routine.name}`
+            })
+        } else {
+            const updateRoutineActicity = await updateRoutineActivity({ id: routineActivityId, count, duration });
+            res.send(updateRoutineActicity)
+        }
+    } catch (error) {
+        console.log(error);
+        next(error);
     }
-  } catch (error) {
-    next(error);
-  }
-});
+})
 
 // DELETE /api/routine_activities/:routineActivityId
-router.delete('/:routineActivityId', requireUser, async (req, res, next) => {
-  try {
-    if(!await canEditRoutineActivity(req.params.routineActivityId, req.user.id)) {
-      res.status(403);
-      next({name: "Unauthorized", message: "You cannot edit this routine_activity!"});
-    } else {
-      const deletedRoutineActivity = await destroyRoutineActivity(req.params.routineActivityId)
-      res.send({success: true, ...deletedRoutineActivity});
+router.delete("/:routineActivityId", async (req, res, next) => {
+    const { routineActivityId } = req.params;
+    try {
+        const routineActivity = await getRoutineActivityById(routineActivityId);
+        const routine = await getRoutineById(routineActivity.routineId);
+
+        if (req.user.id === routine.creatorId) {
+            const deleteRoutineActicity = await destroyRoutineActivity(routineActivityId);
+            res.send(deleteRoutineActicity)
+        } else {
+            res.status(403).send({
+                error: "Error",
+                name: "UnauthorizedUser",
+                message: `User ${req.user.username} is not allowed to delete ${routine.name}`
+            })
+        }
+    } catch (error) {
+        console.log(error);
+        next(error);
     }
-  } catch (error) {
-    next(error);
-  }
-});
+})
 
 module.exports = router;
